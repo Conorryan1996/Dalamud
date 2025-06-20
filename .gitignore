@@ -1,4 +1,7 @@
-.vs/
-obj/
+# Dalamud binaries
+dalamud-binaries/
+dalamud-latest.zip
+
+# Build outputs
 bin/
-*.user
+obj/
