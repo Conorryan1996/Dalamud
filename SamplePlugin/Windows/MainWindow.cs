@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
@@ -39,6 +40,46 @@ public class MainWindow : Window, IDisposable
         customImage?.Dispose();
     }
 
+    private void LoadImageFromPath()
+    {
+        if (string.IsNullOrEmpty(inputPath))
+        {
+            Plugin.Log.Warning("Please enter a file path");
+            return;
+        }
+
+        if (!File.Exists(inputPath))
+        {
+            Plugin.Log.Warning($"File not found: {inputPath}");
+            return;
+        }
+
+        if (!inputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+        {
+            Plugin.Log.Warning("Please select a PNG file");
+            return;
+        }
+
+        try
+        {
+            customImage?.Dispose();
+            customImagePath = inputPath;
+            customImage = Plugin.TextureProvider.GetFromFile(customImagePath).GetWrapOrDefault();
+            if (customImage == null)
+            {
+                Plugin.Log.Error($"Failed to load image from: {customImagePath}");
+            }
+            else
+            {
+                Plugin.Log.Info($"Successfully loaded: {Path.GetFileName(customImagePath)}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Error($"Error loading image: {ex.Message}");
+        }
+    }
+
     public override void Draw()
     {
         // Do not use .Text() or any other formatted function like TextWrapped(), or SetTooltip().
@@ -56,29 +97,31 @@ public class MainWindow : Window, IDisposable
         
         ImGui.Separator();
         ImGui.TextUnformatted("Custom Image Loader:");
+        ImGui.TextUnformatted("Enter full path to PNG file:");
         ImGui.SetNextItemWidth(400);
-        ImGui.InputText("##imagepath", ref inputPath, 500);
+        if (ImGui.InputText("##imagepath", ref inputPath, 500, ImGuiInputTextFlags.EnterReturnsTrue))
+        {
+            LoadImageFromPath();
+        }
         ImGui.SameLine();
         if (ImGui.Button("Load PNG"))
         {
-            if (!string.IsNullOrEmpty(inputPath) && File.Exists(inputPath) && inputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            LoadImageFromPath();
+        }
+        
+        if (ImGui.Button("Browse..."))
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                try
-                {
-                    customImage?.Dispose();
-                    customImagePath = inputPath;
-                    customImage = Plugin.TextureProvider.GetFromFile(customImagePath).GetWrapOrDefault();
-                    if (customImage == null)
-                    {
-                        Plugin.Log.Error($"Failed to load image from: {customImagePath}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Plugin.Log.Error($"Error loading image: {ex.Message}");
-                }
+                inputPath = @"C:\Users\YourName\Pictures\image.png";
+            }
+            else
+            {
+                inputPath = "/home/user/Pictures/image.png";
             }
         }
+        ImGui.SameLine();
+        ImGui.TextUnformatted("(Click Browse for example path)");
         
         if (customImage != null)
         {
