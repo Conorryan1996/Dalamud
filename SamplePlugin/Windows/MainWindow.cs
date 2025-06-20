@@ -8,6 +8,7 @@ using Dalamud.Interface.Windowing;
 using ImGuiNET;
 using Lumina.Excel.Sheets;
 using Dalamud.Interface.Textures.TextureWraps;
+using Dalamud.Interface.Textures;
 
 namespace SamplePlugin.Windows;
 
@@ -18,6 +19,7 @@ public class MainWindow : Window, IDisposable
     private string? customImagePath = null;
     private IDalamudTextureWrap? customImage = null;
     private string inputPath = "";
+    private ISharedImmediateTexture? loadingTexture = null;
 
     // We give this window a hidden ID using ##
     // So that the user will see "My Amazing Window" as window title,
@@ -68,39 +70,16 @@ public class MainWindow : Window, IDisposable
             Plugin.Log.Info($"Attempting to load: {customImagePath}");
             Plugin.Log.Info($"File size: {new FileInfo(customImagePath).Length} bytes");
             
-            var textureWrap = Plugin.TextureProvider.GetFromFile(customImagePath);
-            Plugin.Log.Info($"TextureWrap created: {textureWrap != null}");
+            // Store the texture for async loading
+            loadingTexture = Plugin.TextureProvider.GetFromFile(customImagePath);
+            Plugin.Log.Info($"Texture loading started: {loadingTexture != null}");
             
-            if (textureWrap != null)
-            {
-                // Try to get the actual texture and any error
-                if (textureWrap.TryGetWrap(out var texture, out var exception))
-                {
-                    customImage = texture;
-                    Plugin.Log.Info($"Successfully loaded: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
-                }
-                else
-                {
-                    Plugin.Log.Error($"TryGetWrap failed for: {customImagePath}");
-                    if (exception != null)
-                    {
-                        Plugin.Log.Error($"Load exception: {exception.Message}");
-                        Plugin.Log.Error($"Exception type: {exception.GetType().Name}");
-                    }
-                    else
-                    {
-                        Plugin.Log.Error("No exception - texture may still be loading");
-                    }
-                }
-            }
-            else
-            {
-                Plugin.Log.Error($"TextureProvider.GetFromFile returned null for: {customImagePath}");
-            }
+            // Clear the current image since we're loading a new one
+            customImage = null;
         }
         catch (Exception ex)
         {
-            Plugin.Log.Error($"Error loading image: {ex.Message}");
+            Plugin.Log.Error($"Error starting image load: {ex.Message}");
             Plugin.Log.Error($"Stack trace: {ex.StackTrace}");
         }
     }
@@ -148,10 +127,32 @@ public class MainWindow : Window, IDisposable
         ImGui.SameLine();
         ImGui.TextUnformatted("(Click Browse for example path)");
         
+        // Check if async texture has loaded
+        if (loadingTexture != null && customImage == null)
+        {
+            if (loadingTexture.TryGetWrap(out var loadedTexture, out var exception))
+            {
+                customImage = loadedTexture;
+                Plugin.Log.Info($"Async texture loaded successfully: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
+                loadingTexture = null; // Clear the loading reference
+            }
+            else if (exception != null)
+            {
+                Plugin.Log.Error($"Async texture load failed: {exception.Message}");
+                Plugin.Log.Error($"Exception type: {exception.GetType().Name}");
+                loadingTexture = null; // Clear the failed reference
+            }
+            // If no texture and no exception, it's still loading - keep checking
+        }
+
         if (customImage != null)
         {
-            ImGui.TextUnformatted($"Loaded: {Path.GetFileName(customImagePath)}");
+            ImGui.TextUnformatted($"Loaded: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
             ImGui.Image(customImage.ImGuiHandle, new Vector2(customImage.Width, customImage.Height));
+        }
+        else if (loadingTexture != null)
+        {
+            ImGui.TextUnformatted("Loading image...");
         }
         
         ImGui.Separator();
