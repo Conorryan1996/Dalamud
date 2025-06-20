@@ -39,7 +39,9 @@ public class MainWindow : Window, IDisposable
 
     public void Dispose() 
     { 
-        customImage?.Dispose();
+        // Don't dispose customImage - it's managed by Dalamud's ISharedImmediateTexture
+        loadingTexture = null;
+        customImage = null;
     }
 
     private void LoadImageFromPath()
@@ -64,7 +66,9 @@ public class MainWindow : Window, IDisposable
 
         try
         {
-            customImage?.Dispose();
+            // Clear previous image (don't dispose - managed by Dalamud)
+            customImage = null;
+            loadingTexture = null;
             customImagePath = inputPath;
             
             Plugin.Log.Info($"Attempting to load: {customImagePath}");
@@ -127,28 +131,51 @@ public class MainWindow : Window, IDisposable
         ImGui.SameLine();
         ImGui.TextUnformatted("(Click Browse for example path)");
         
-        // Check if async texture has loaded
-        if (loadingTexture != null && customImage == null)
+        // Check if async texture has loaded and display it directly
+        if (loadingTexture != null)
         {
-            if (loadingTexture.TryGetWrap(out var loadedTexture, out var exception))
+            var currentTexture = loadingTexture.GetWrapOrEmpty();
+            if (currentTexture.Width > 1 && currentTexture.Height > 1) // Not empty texture
             {
-                customImage = loadedTexture;
-                Plugin.Log.Info($"Async texture loaded successfully: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
-                loadingTexture = null; // Clear the loading reference
+                if (customImage == null) // First time loaded
+                {
+                    Plugin.Log.Info($"Async texture loaded successfully: {Path.GetFileName(customImagePath)} ({currentTexture.Width}x{currentTexture.Height})");
+                }
+                customImage = currentTexture;
             }
-            else if (exception != null)
+            else
             {
-                Plugin.Log.Error($"Async texture load failed: {exception.Message}");
-                Plugin.Log.Error($"Exception type: {exception.GetType().Name}");
-                loadingTexture = null; // Clear the failed reference
+                // Still loading or failed - check for errors
+                if (loadingTexture.TryGetWrap(out _, out var exception) && exception != null)
+                {
+                    Plugin.Log.Error($"Async texture load failed: {exception.Message}");
+                    Plugin.Log.Error($"Exception type: {exception.GetType().Name}");
+                    loadingTexture = null; // Clear the failed reference
+                }
             }
-            // If no texture and no exception, it's still loading - keep checking
         }
 
         if (customImage != null)
         {
-            ImGui.TextUnformatted($"Loaded: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
-            ImGui.Image(customImage.ImGuiHandle, new Vector2(customImage.Width, customImage.Height));
+            try
+            {
+                // Check if the texture handle is still valid
+                if (customImage.ImGuiHandle != IntPtr.Zero)
+                {
+                    ImGui.TextUnformatted($"Loaded: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
+                    ImGui.Image(customImage.ImGuiHandle, new Vector2(customImage.Width, customImage.Height));
+                }
+                else
+                {
+                    ImGui.TextUnformatted("Image handle invalid - texture was disposed");
+                    customImage = null; // Clear invalid texture
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.Error($"Error displaying image: {ex.Message}");
+                customImage = null; // Clear problematic texture
+            }
         }
         else if (loadingTexture != null)
         {
