@@ -20,6 +20,12 @@ public class MainWindow : Window, IDisposable
     private IDalamudTextureWrap? customImage = null;
     private string inputPath = "";
     private ISharedImmediateTexture? loadingTexture = null;
+    
+    // Decal system
+    private bool decalEnabled = false;
+    private float decalSize = 2.0f;
+    private float decalOpacity = 0.7f;
+    private Vector3 lastPlayerPosition = Vector3.Zero;
 
     // We give this window a hidden ID using ##
     // So that the user will see "My Amazing Window" as window title,
@@ -85,6 +91,60 @@ public class MainWindow : Window, IDisposable
         {
             Plugin.Log.Error($"Error starting image load: {ex.Message}");
             Plugin.Log.Error($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private void DrawGroundDecal()
+    {
+        if (customImage == null || !decalEnabled)
+            return;
+
+        var localPlayer = Plugin.ClientState.LocalPlayer;
+        if (localPlayer == null)
+            return;
+
+        try
+        {
+            // Get player's world position
+            var playerPos = localPlayer.Position;
+            
+            // Convert world position to screen coordinates
+            if (Plugin.GameGui.WorldToScreen(playerPos, out var screenPos))
+            {
+                // Create a separate window for the decal overlay
+                ImGui.SetNextWindowPos(new Vector2(screenPos.X - (decalSize * 50), screenPos.Y - (decalSize * 50)));
+                ImGui.SetNextWindowSize(new Vector2(decalSize * 100, decalSize * 100));
+                
+                var flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | 
+                           ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollbar | 
+                           ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoInputs |
+                           ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.NoSavedSettings;
+
+                if (ImGui.Begin("GroundDecal##DecalOverlay", flags))
+                {
+                    // Draw the image with opacity
+                    var drawList = ImGui.GetWindowDrawList();
+                    var windowPos = ImGui.GetWindowPos();
+                    var windowSize = ImGui.GetWindowSize();
+                    
+                    // Apply opacity by modulating the color
+                    var color = ImGui.ColorConvertFloat4ToU32(new Vector4(1.0f, 1.0f, 1.0f, decalOpacity));
+                    
+                    drawList.AddImage(
+                        customImage.ImGuiHandle,
+                        windowPos,
+                        new Vector2(windowPos.X + windowSize.X, windowPos.Y + windowSize.Y),
+                        Vector2.Zero,
+                        Vector2.One,
+                        color
+                    );
+                }
+                ImGui.End();
+            }
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Error($"Error drawing ground decal: {ex.Message}");
         }
     }
 
@@ -180,6 +240,52 @@ public class MainWindow : Window, IDisposable
         else if (loadingTexture != null)
         {
             ImGui.TextUnformatted("Loading image...");
+        }
+        
+        // Decal System Controls
+        if (customImage != null)
+        {
+            ImGui.Separator();
+            ImGui.TextUnformatted("Ground Decal System:");
+            
+            if (ImGui.Checkbox("Enable Decal Under Character", ref decalEnabled))
+            {
+                if (decalEnabled)
+                {
+                    Plugin.Log.Info("Ground decal enabled");
+                }
+                else
+                {
+                    Plugin.Log.Info("Ground decal disabled");
+                }
+            }
+            
+            if (decalEnabled)
+            {
+                ImGui.SliderFloat("Decal Size", ref decalSize, 0.5f, 10.0f);
+                ImGui.SliderFloat("Decal Opacity", ref decalOpacity, 0.1f, 1.0f);
+                
+                // Show current player position for debugging
+                var localPlayer = Plugin.ClientState.LocalPlayer;
+                if (localPlayer != null)
+                {
+                    var pos = localPlayer.Position;
+                    ImGui.TextUnformatted($"Player Position: X={pos.X:F2}, Y={pos.Y:F2}, Z={pos.Z:F2}");
+                    
+                    // Update position tracking
+                    lastPlayerPosition = pos;
+                }
+                else
+                {
+                    ImGui.TextUnformatted("Player not found");
+                }
+                
+                // Draw ground decal if enabled
+                if (decalEnabled && customImage != null)
+                {
+                    DrawGroundDecal();
+                }
+            }
         }
         
         ImGui.Separator();
