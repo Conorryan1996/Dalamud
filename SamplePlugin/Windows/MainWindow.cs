@@ -1,10 +1,12 @@
 ﻿using System;
+using System.IO;
 using System.Numerics;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using ImGuiNET;
 using Lumina.Excel.Sheets;
+using Dalamud.Interface.Internal;
 
 namespace SamplePlugin.Windows;
 
@@ -12,6 +14,9 @@ public class MainWindow : Window, IDisposable
 {
     private string GoatImagePath;
     private Plugin Plugin;
+    private string? customImagePath = null;
+    private IDalamudTextureWrap? customImage = null;
+    private string inputPath = "";
 
     // We give this window a hidden ID using ##
     // So that the user will see "My Amazing Window" as window title,
@@ -29,7 +34,10 @@ public class MainWindow : Window, IDisposable
         Plugin = plugin;
     }
 
-    public void Dispose() { }
+    public void Dispose() 
+    { 
+        customImage?.Dispose();
+    }
 
     public override void Draw()
     {
@@ -44,6 +52,41 @@ public class MainWindow : Window, IDisposable
             Plugin.ToggleConfigUI();
         }
 
+        ImGui.Spacing();
+        
+        ImGui.Separator();
+        ImGui.TextUnformatted("Custom Image Loader:");
+        ImGui.SetNextItemWidth(400);
+        ImGui.InputText("##imagepath", ref inputPath, 500);
+        ImGui.SameLine();
+        if (ImGui.Button("Load PNG"))
+        {
+            if (!string.IsNullOrEmpty(inputPath) && File.Exists(inputPath) && inputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    customImage?.Dispose();
+                    customImagePath = inputPath;
+                    customImage = Plugin.TextureProvider.GetFromFile(customImagePath).GetWrapOrDefault();
+                    if (customImage == null)
+                    {
+                        Plugin.Log.Error($"Failed to load image from: {customImagePath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Log.Error($"Error loading image: {ex.Message}");
+                }
+            }
+        }
+        
+        if (customImage != null)
+        {
+            ImGui.TextUnformatted($"Loaded: {Path.GetFileName(customImagePath)}");
+            ImGui.Image(customImage.ImGuiHandle, new Vector2(customImage.Width, customImage.Height));
+        }
+        
+        ImGui.Separator();
         ImGui.Spacing();
 
         // Normally a BeginChild() would have to be followed by an unconditional EndChild(),
