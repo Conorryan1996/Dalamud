@@ -64,19 +64,30 @@ public class MainWindow : Window, IDisposable
         {
             customImage?.Dispose();
             customImagePath = inputPath;
-            customImage = Plugin.TextureProvider.GetFromFile(customImagePath).GetWrapOrDefault();
+            
+            Plugin.Log.Info($"Attempting to load: {customImagePath}");
+            Plugin.Log.Info($"File size: {new FileInfo(customImagePath).Length} bytes");
+            
+            var textureWrap = Plugin.TextureProvider.GetFromFile(customImagePath);
+            Plugin.Log.Info($"TextureWrap created: {textureWrap != null}");
+            
+            customImage = textureWrap?.GetWrapOrDefault();
+            Plugin.Log.Info($"GetWrapOrDefault result: {customImage != null}");
+            
             if (customImage == null)
             {
                 Plugin.Log.Error($"Failed to load image from: {customImagePath}");
+                Plugin.Log.Error("Possible causes: unsupported format, corrupted file, or path access issue");
             }
             else
             {
-                Plugin.Log.Info($"Successfully loaded: {Path.GetFileName(customImagePath)}");
+                Plugin.Log.Info($"Successfully loaded: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
             }
         }
         catch (Exception ex)
         {
             Plugin.Log.Error($"Error loading image: {ex.Message}");
+            Plugin.Log.Error($"Stack trace: {ex.StackTrace}");
         }
     }
 
