@@ -39,6 +39,18 @@ The project uses Dalamud.NET.Sdk v12.0.2 which automatically handles:
 ## Note
 Building requires a working Dalamud installation as the SDK references Dalamud assemblies during compilation. Without Dalamud installed, the build will fail with missing reference errors.
 
+### Building Without Dalamud Installation
+This plugin cannot be built without a proper FFXIV/Dalamud installation because:
+1. The Dalamud.NET.Sdk requires Dalamud DLLs to be present at build time
+2. These DLLs are only available through XIVLauncher installation
+3. The plugin depends on game-specific APIs that are part of Dalamud
+
+To build this plugin:
+1. Install FFXIV through official launcher
+2. Install XIVLauncher from https://goatcorp.github.io/
+3. Run the game at least once with XIVLauncher to install Dalamud
+4. Then follow the build instructions above
+
 ## Using the Modified Plugin
 1. Build the plugin following the instructions above
 2. Add the built DLL to Dalamud's Dev Plugin Locations
