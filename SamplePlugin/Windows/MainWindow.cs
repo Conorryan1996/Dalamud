@@ -71,17 +71,31 @@ public class MainWindow : Window, IDisposable
             var textureWrap = Plugin.TextureProvider.GetFromFile(customImagePath);
             Plugin.Log.Info($"TextureWrap created: {textureWrap != null}");
             
-            customImage = textureWrap?.GetWrapOrDefault();
-            Plugin.Log.Info($"GetWrapOrDefault result: {customImage != null}");
-            
-            if (customImage == null)
+            if (textureWrap != null)
             {
-                Plugin.Log.Error($"Failed to load image from: {customImagePath}");
-                Plugin.Log.Error("Possible causes: unsupported format, corrupted file, or path access issue");
+                // Try to get the actual texture and any error
+                if (textureWrap.TryGetWrap(out var texture, out var exception))
+                {
+                    customImage = texture;
+                    Plugin.Log.Info($"Successfully loaded: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
+                }
+                else
+                {
+                    Plugin.Log.Error($"TryGetWrap failed for: {customImagePath}");
+                    if (exception != null)
+                    {
+                        Plugin.Log.Error($"Load exception: {exception.Message}");
+                        Plugin.Log.Error($"Exception type: {exception.GetType().Name}");
+                    }
+                    else
+                    {
+                        Plugin.Log.Error("No exception - texture may still be loading");
+                    }
+                }
             }
             else
             {
-                Plugin.Log.Info($"Successfully loaded: {Path.GetFileName(customImagePath)} ({customImage.Width}x{customImage.Height})");
+                Plugin.Log.Error($"TextureProvider.GetFromFile returned null for: {customImagePath}");
             }
         }
         catch (Exception ex)
